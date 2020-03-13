@@ -6,53 +6,47 @@ import datetime
 import argparse
 import validators
 from xml.etree import ElementTree as ET
+from influx_line_protocol import Metric
 
 def main(measurement, station, url, latest):
-    latest_columns =     "wind_dir_degt,wind_speed_mps,gust_speed_mps,significant_wave_height_m,dominant_wave_period_sec,avg_wave_period_sec,wave_dir_degt,sea_level_pressure_hpa,air_temp_degc,sea_surface_temp_degc,dewpoint_temp_degc,station_visibility_nmi,pressure_tendency_hpa,water_level_ft".split(",")
-    realtime_columns =   "wind_dir_degt,wind_speed_mps,gust_speed_mps,significant_wave_height_m,dominant_wave_period_sec,avg_wave_period_sec,wave_dir_degt,sea_level_pressure_hpa,air_temp_degc,sea_surface_temp_degc,dewpoint_temp_degc,station_visibility_nmi,water_level_ft".split(",")
-    historical_columns = "wind_dir_degt,wind_speed_mps,gust_speed_mps,significant_wave_height_m,dominant_wave_period_sec,avg_wave_period_sec,wave_dir_degt,sea_level_pressure_hpa,air_temp_degc,sea_surface_temp_degc,dewpoint_temp_degc,station_visibility_nmi,pressure_tendency_hpa,water_level_ft".split(",")
-    missing_data_list = "MM,999,9999.0,999.0,99.0,99.00".split(",")
+    default_columns   =  "wind_dir_degt,wind_speed_mps,gust_speed_mps,significant_wave_height_m,dominant_wave_period_sec,avg_wave_period_sec,wave_dir_degt,sea_level_pressure_hpa,air_temp_degc,sea_surface_temp_degc,dewpoint_temp_degc,station_visibility_nmi,pressure_tendency_hpa,water_level_ft".split(",")
+    realtime_columns  =  "wind_dir_degt,wind_speed_mps,gust_speed_mps,significant_wave_height_m,dominant_wave_period_sec,avg_wave_period_sec,wave_dir_degt,sea_level_pressure_hpa,air_temp_degc,sea_surface_temp_degc,dewpoint_temp_degc,station_visibility_nmi,water_level_ft".split(",")
+    missing_data_list =  "MM,999,9999.0,999.0,99.0,99.00".split(",")
 
     f = requests.get(url)
     metadata_map = pull_station_metadata()
     for line in f.text.splitlines():
         if not is_comment(line):
+            metric = Metric(measurement)
             values_list = line.split()
-            line_protocol_list = []
             if latest:
                 station_id = values_list.pop(0)
-                lat = float(values_list.pop(0))
-                lon = float(values_list.pop(0))
-                tags = []
+                values_list.pop(0) # lat
+                values_list.pop(0) # lon
                 for key,value in metadata_map[station_id.lower()].items():
                     if key == 'id':
                         key = 'station_id'
-                    value = value.replace(',','\,').replace(' ','\ ').replace('=','\=')
                     if len(value) > 0:
                         if key in ["lat","lon"]:
-                            line_protocol_list.append("{}={}".format(key,value))
+                            metric.add_value(key,float(value))
                         else:
-                            tags.append("{}={}".format(key,value))
+                            metric.add_tag(key,value)
             date = "{}-{}-{}T{}:{}+0700".format(values_list.pop(0),values_list.pop(0),values_list.pop(0),values_list.pop(0),values_list.pop(0)) #2006-01-02T15:04
+            metric.with_timestamp(date_to_unix_timestamp(date))
             is_historical = (len(values_list) == 13)
             for i in range(len(values_list)):
                 if values_list[i] not in missing_data_list:
-                    if latest:
-                        line_protocol_list.append("{}={}".format(latest_columns[i],float(values_list[i])))
-                    elif is_historical:
-                        line_protocol_list.append("{}={}".format(historical_columns[i],float(values_list[i])))
+                    if latest or is_historical:
+                        metric.add_value(default_columns[i],float(values_list[i]))
                     else:
-                        line_protocol_list.append("{}={}".format(realtime_columns[i],float(values_list[i])))
-            if len(line_protocol_list) == 0:
-                continue
-            if latest:
-                print("{},".format(measurement) + ",".join(tags) + " " + ",".join(line_protocol_list) + " {}".format(date_to_unix_timestamp(date)) )
-            else:
-                print("{},station_id={} ".format(measurement,station) + ",".join(line_protocol_list) + " {}".format(date_to_unix_timestamp(date)))
+                        metric.add_value(realtime_columns[i],float(values_list[i]))
+            if station:
+                metric.add_tag("station_id",station)
+            print(metric)
 
 def date_to_unix_timestamp(my_date):
     format = "%Y-%m-%dT%H:%M%z"
-    return str(int(time.mktime(datetime.datetime.strptime(my_date, format).utctimetuple()))) + "000000000"
+    return int(time.mktime(datetime.datetime.strptime(my_date, format).utctimetuple())) * 1000000000
 
 def is_comment(line):
     return line.startswith("#") or line.startswith("YYYY")
