@@ -10,18 +10,18 @@ from contextlib import closing
 import codecs
 import validators
 
-def main(measurement, url, all, cell_level):
+def main(measurement, url, all):
     if all:
         start = start = datetime.datetime.strptime("01-22-2020", "%m-%d-%Y")
         end = datetime.datetime.today()
         date_generated = [start + datetime.timedelta(days=x) for x in range(0, (end-start).days)]
 
         for my_date in date_generated:
-            print_lp(measurement,url.format(my_date.strftime("%d-%m-%Y")),cell_level)
+            print_lp(measurement,url.format(my_date.strftime("%d-%m-%Y")))
     else:
-       print_lp(measurement,url,cell_level)
+       print_lp(measurement,url)
 
-def print_lp(measurement,url,cell_level):
+def print_lp(measurement,url):
     with closing(requests.get(url, stream=True)) as r:
         reader = csv.reader(codecs.iterdecode(r.iter_lines(), 'utf-8'))
         row_count = 0
@@ -60,7 +60,6 @@ def parseArguments():
     parser.add_argument("-l","--latest", action='store_true', help="Grabs the latest csv file based on the current date (default)")
     parser.add_argument("-a","--all", action='store_true', help="Grabs all data from 01-22-2020 to now.")
     parser.add_argument("-m","--measurement", help="Measurement name, defaults to covid", default="covid")
-    parser.add_argument("-c","--s2-cell-level", help="The s2 cell level, between 0 and 30", default="30")
     parser.add_argument("-d","--date", help="Date daily csv data mm-dd-yyyy, for example: 02-03-2020")
 
     # Print version
@@ -76,10 +75,10 @@ if __name__ == '__main__':
     args = parseArguments()
     covid_csv_url = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{}.csv"
     if args.all:
-        main(args.measurement, covid_csv_url, True, args.s2_cell_level)
+        main(args.measurement, covid_csv_url, True)
     elif args.date:
-        main(args.measurement, covid_csv_url.format(args.date), False, args.s2_cell_level)
+        main(args.measurement, covid_csv_url.format(args.date), False)
     else:
         today = date.today()
         d1 = today.strftime("%m-%d-%Y")
-        main(args.measurement, covid_csv_url.format(d1), False, args.s2_cell_level)
+        main(args.measurement, covid_csv_url.format(d1), False)
