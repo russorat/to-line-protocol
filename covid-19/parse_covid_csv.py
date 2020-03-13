@@ -9,6 +9,7 @@ import argparse
 from contextlib import closing
 import codecs
 import validators
+from influx_line_protocol import Metric
 
 def main(measurement, url, all):
     if all:
@@ -30,27 +31,29 @@ def print_lp(measurement,url):
                 row_count+=1
                 continue
             else:
-                province = (row[0] or "").strip().replace(" ",'\ ').replace(",",'\,')
-                country = (row[1] or "").strip().replace(" ",'\ ').replace(",",'\,')
-                last_update = date_to_unix_timestamp((row[2] or "").strip())
-                confirmed = int((row[3] or "0").strip())
-                deaths = int((row[4] or "0").strip())
-                recovered = int((row[5] or "0").strip())
-                lat = 0.0
-                lon = 0.0
-                if len(row) > 6:
-                    lat = (row[6] or "").strip()
-                    lon = (row[7] or "").strip()
+                metric = Metric(measurement)
+                
+                province = (row[0] or "").strip()
                 if province:
-                    province = "province={},".format(province)
+                    metric.add_value("province", province)
+                country = (row[1] or "").strip()
                 if country:
-                    country = "country={}".format(country)
-
-                print("{},{}{} confirmed={},deaths={},recoved={},lat={},lon={} {}".format(measurement,province,country,confirmed,deaths,recovered,lat,lon,last_update))
-
+                    metric.add_value("country", country)
+                metric.with_timestamp(date_to_unix_timestamp((row[2] or "").strip()))
+                
+                metric.add_value("confirmed", int((row[3] or "0").strip()))
+                metric.add_value("deaths", int((row[4] or "0").strip()))
+                metric.add_value("recovered", int((row[5] or "0").strip()))
+                
+                if len(row) > 6:
+                    metric.add_value("lat", float((row[6] or "").strip()))
+                    metric.add_value("lon", float((row[7] or "").strip()))
+                    
+                print(metric)
+                
 def date_to_unix_timestamp(my_date):
     format = "%Y-%m-%dT%H:%M:%S"
-    return str(int(time.mktime(datetime.datetime.strptime(my_date, format).utctimetuple()))) + "000000000"
+    return int(time.mktime(datetime.datetime.strptime(my_date, format).utctimetuple())) * 1000000000
 
 def parseArguments():
     # Create argument parser

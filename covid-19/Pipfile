@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
+pylint = "*"
 
 [packages]
 requests = "*"
@@ -12,3 +13,4 @@ argparse = "*"
 validators = "*"
 s2sphere = "*"
 python-csv = "*"
+influx-line-protocol = "*"
