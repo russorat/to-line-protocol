@@ -50,3 +50,20 @@ To use this in [Telegraf](https://github.com/influxdata/telegraf), use the exec 
   timeout = "9s"
   data_format = "influx"
 ```
+
+If you are using Telegraf 1.14 or greater, you can also add the s2_cell_id and take advantage of the new
+geotemporal functions within Flux.  Add this to your Telegraf config:
+```
+[[processors.s2geo]]
+  ## The name of the lat and lon fields containing WGS-84 latitude and
+  ## longitude in decimal degrees.
+  lat_field = "lat"
+  lon_field = "lon"
+
+  ## New tag to create
+  tag_key = "s2_cell_id"
+
+  ## Cell level (see https://s2geometry.io/resources/s2cell_statistics.html)
+  cell_level = 20
+  ```
+  
